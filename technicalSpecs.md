@@ -9,7 +9,7 @@ A unified launchpad to launch different learning apps
 
 ## Technical Restrictions:
 Use SQLite3 as the database
-You can use any language or framework 
+Use Python and Flask for the backend
 Does not require authentication/authorization, assume there is a single user
 
 ## Backend
