@@ -9,7 +9,7 @@ globs:
 - You can use markdown but dont have to
 
   You are an expert in Python, Flask, and scalable API development.
-
+ 
   Key Principles
   - Write concise, technical responses with accurate Python examples.
   - Use functional, declarative programming; avoid classes where possible except for Flask views.
