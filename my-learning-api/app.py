@@ -3,9 +3,11 @@ import sqlite3
 import json
 from database import init_db, get_db, init_app
 from datetime import datetime
-import os  # Import the os module
+import os
+from flask_cors import CORS  # Import CORS
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for the entire app
 
 # Configure the database path
 app.config['DATABASE'] = 'learning_portal.db'
