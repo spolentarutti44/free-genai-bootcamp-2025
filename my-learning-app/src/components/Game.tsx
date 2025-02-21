@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import GameMap from './GameMap';
-import Input from './Input';
 import ProgressTracker from './ProgressTracker';
 import VocabularyTracker from './VocabularyTracker';
 
@@ -50,27 +49,26 @@ function Game() {
         }
     };
 
-    const handleCommand = (command: string) => {
-        // Process the command (e.g., "north", "south", "east", "west")
+    // useCallback hook to memoize the handleKeyDown function
+    const handleKeyDown = useCallback((event: KeyboardEvent) => {
         let newRow = playerPosition.row;
         let newCol = playerPosition.col;
 
-        switch (command.toLowerCase()) {
-            case 'north':
+        switch (event.key) {
+            case 'ArrowUp':
                 newRow -= 1;
                 break;
-            case 'south':
+            case 'ArrowDown':
                 newRow += 1;
                 break;
-            case 'east':
-                newCol += 1;
-                break;
-            case 'west':
+            case 'ArrowLeft':
                 newCol -= 1;
                 break;
+            case 'ArrowRight':
+                newCol += 1;
+                break;
             default:
-                console.log("Invalid command");
-                return;
+                return; // Do nothing if it's not an arrow key
         }
 
         // Check if the new position is valid
@@ -79,7 +77,16 @@ function Game() {
         } else {
             console.log("You can't go that way!");
         }
-    };
+    }, [playerPosition, gameMap]); // Dependencies for useCallback
+
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+
+        // Cleanup the event listener when the component unmounts
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [handleKeyDown]); // Dependency for useEffect
 
     if (words.length === 0) {
         return <div>Loading...</div>;
@@ -89,8 +96,7 @@ function Game() {
         <div className="flex flex-col">
             <ProgressTracker current={currentWordIndex + 1} total={words.length} />
             <VocabularyTracker words={words.slice(0, currentWordIndex + 1)} />
-            <GameMap map={gameMap} />
-            <Input onEnter={handleCommand} />
+            <GameMap map={gameMap} playerPosition={playerPosition} />
         </div>
     );
 }
