@@ -15,19 +15,22 @@ function Game() {
     const [currentWordIndex, setCurrentWordIndex] = useState(0);
     const [score, setScore] = useState(0);
     const [gameMap, setGameMap] = useState<string[][]>([
-        ['#', '#', '#', '#', '#', '#', '#', '#', '#', '#'],
-        ['#', 'S', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', '#', ' ', '#', ' ', '#', ' ', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', '#', '#', '#', '#', ' ', '#', '#', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', '#', '#', ' ', '#', '#', '#', ' ', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', ' ', 'E', ' ', '#'],
-        ['#', '#', '#', '#', '#', '#', '#', '#', '#', '#'],
-    ]); // Example map
-    const [playerPosition, setPlayerPosition] = useState({ row: 1, col: 1 }); // Start position
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', 'X', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+        ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*', '*'],
+    ]);
+    const [playerPosition, setPlayerPosition] = useState({ row: 4, col: 4 }); // Start position
     const [message, setMessage] = useState(''); // State for displaying messages
+    const [selectedWord, setSelectedWord] = useState<string | undefined>(undefined); // State for selected word
+    const [isDropdownVisible, setIsDropdownVisible] = useState(false);
+    const [canMove, setCanMove] = useState(true); // Initially, the player can move
 
     useEffect(() => {
         // Fetch words from the backend API
@@ -44,12 +47,29 @@ function Game() {
         fetchWords();
     }, []);
 
-    const handleAnswer = (selectedWord: string) => {
+    const showDropdown = () => {
+        setIsDropdownVisible(true);
+        setCanMove(false); // Disable movement when the dropdown appears
+    };
+
+    const handleAnswer = () => {
+        if (!selectedWord) {
+            setMessage("Please select a word.");
+            return;
+        }
+
         if (words[currentWordIndex].english === selectedWord) {
             setScore(score + 1);
+            setMessage("Correct!");
+            setIsDropdownVisible(false);
+            setCanMove(true); // Enable movement after correct answer
+        } else {
+            setMessage(`Incorrect. The correct answer was ${words[currentWordIndex].english}`);
         }
+
         if (currentWordIndex < words.length - 1) {
             setCurrentWordIndex(currentWordIndex + 1);
+            setSelectedWord(undefined); // Reset selected word
         } else {
             setMessage("Game Over! Your score: " + score); // Set game over message
         }
@@ -57,6 +77,10 @@ function Game() {
 
     // useCallback hook to memoize the handleKeyDown function
     const handleKeyDown = useCallback((event: KeyboardEvent) => {
+        if (!canMove) {
+            return; // Prevent movement if canMove is false
+        }
+
         let newRow = playerPosition.row;
         let newCol = playerPosition.col;
 
@@ -78,13 +102,33 @@ function Game() {
         }
 
         // Check if the new position is valid
-        if (newRow >= 0 && newRow < gameMap.length && newCol >= 0 && newCol < gameMap[0].length && gameMap[newRow][newCol] !== '#') {
+        if (newRow >= 0 && newRow < gameMap.length && newCol >= 0 && newCol < gameMap[0].length && gameMap[newRow][newCol] === '*') {
             setPlayerPosition({ row: newRow, col: newCol });
             setMessage(''); // Clear any previous message
+
+            // Update the game map to reflect the player's new position
+            const newGameMap = gameMap.map((row, rowIndex) =>
+                row.map((cell, colIndex) => {
+                    if (rowIndex === newRow && colIndex === newCol) {
+                        return 'X'; // Set the new position to 'X'
+                    } else if (rowIndex === playerPosition.row && colIndex === playerPosition.col) {
+                        return '*'; // Set the old position back to '*'
+                    } else {
+                        return cell; // Keep the other cells as they were
+                    }
+                })
+            );
+            setGameMap(newGameMap);
+
+            // Randomly show the dropdown after a successful move
+            if (Math.random() < 0.5) { // Adjust the probability as needed
+                showDropdown();
+            }
+
         } else {
             setMessage("You can't go that way!"); // Set the message
         }
-    }, [playerPosition, gameMap]); // Dependencies for useCallback
+    }, [playerPosition, gameMap, canMove]); // Dependencies for useCallback
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
@@ -99,12 +143,36 @@ function Game() {
         return <div>Loading...</div>;
     }
 
+    const currentWord = words[currentWordIndex];
+
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col h-screen">
             <ProgressTracker current={currentWordIndex + 1} total={words.length} />
             <VocabularyTracker words={words.slice(0, currentWordIndex + 1)} />
             <GameMap map={gameMap} playerPosition={playerPosition} />
             {message && <div className="message">{message}</div>} {/* Display the message */}
+
+            {isDropdownVisible && (
+                <div className="p-4">
+                    <p>Translate the following word:</p>
+                    <p className="font-bold">{currentWord.kanji} ({currentWord.romaji})</p>
+
+                    <select
+                        className="w-[180px] border border-gray-300 rounded-md py-2 px-3"
+                        value={selectedWord}
+                        onChange={(e) => setSelectedWord(e.target.value)}
+                    >
+                        <option value="">Select a translation</option>
+                        {words.map((word) => (
+                            <option key={word.id} value={word.english}>{word.english}</option>
+                        ))}
+                    </select>
+
+                    <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4" onClick={handleAnswer}>
+                        Submit Answer
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
