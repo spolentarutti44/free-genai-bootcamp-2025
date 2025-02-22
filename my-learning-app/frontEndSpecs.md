@@ -14,7 +14,7 @@ The user will have to answer the question by selecting the correct word from a d
 The game will have a vocabulary tracker that will show the user's vocabulary
 The game will have a progress tracker that will show the user's progress
 
-## Map Example
+## Map
 *************************
 *************************
 *************************
