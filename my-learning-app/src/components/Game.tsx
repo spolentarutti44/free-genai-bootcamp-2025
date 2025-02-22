@@ -15,13 +15,19 @@ function Game() {
     const [currentWordIndex, setCurrentWordIndex] = useState(0);
     const [score, setScore] = useState(0);
     const [gameMap, setGameMap] = useState<string[][]>([
-        ['#', '#', '#', '#', '#'],
-        ['#', 'S', ' ', ' ', '#'],
-        ['#', ' ', '#', ' ', '#'],
-        ['#', ' ', ' ', 'E', '#'],
-        ['#', '#', '#', '#', '#'],
+        ['#', '#', '#', '#', '#', '#', '#', '#', '#', '#'],
+        ['#', 'S', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
+        ['#', ' ', '#', ' ', '#', ' ', '#', ' ', '#', '#'],
+        ['#', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
+        ['#', '#', '#', '#', '#', ' ', '#', '#', '#', '#'],
+        ['#', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
+        ['#', '#', '#', ' ', '#', '#', '#', ' ', '#', '#'],
+        ['#', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
+        ['#', ' ', ' ', ' ', ' ', ' ', ' ', 'E', ' ', '#'],
+        ['#', '#', '#', '#', '#', '#', '#', '#', '#', '#'],
     ]); // Example map
     const [playerPosition, setPlayerPosition] = useState({ row: 1, col: 1 }); // Start position
+    const [message, setMessage] = useState(''); // State for displaying messages
 
     useEffect(() => {
         // Fetch words from the backend API
@@ -45,7 +51,7 @@ function Game() {
         if (currentWordIndex < words.length - 1) {
             setCurrentWordIndex(currentWordIndex + 1);
         } else {
-            alert("Game Over! Your score: " + score);
+            setMessage("Game Over! Your score: " + score); // Set game over message
         }
     };
 
@@ -74,8 +80,9 @@ function Game() {
         // Check if the new position is valid
         if (newRow >= 0 && newRow < gameMap.length && newCol >= 0 && newCol < gameMap[0].length && gameMap[newRow][newCol] !== '#') {
             setPlayerPosition({ row: newRow, col: newCol });
+            setMessage(''); // Clear any previous message
         } else {
-            console.log("You can't go that way!");
+            setMessage("You can't go that way!"); // Set the message
         }
     }, [playerPosition, gameMap]); // Dependencies for useCallback
 
@@ -97,6 +104,7 @@ function Game() {
             <ProgressTracker current={currentWordIndex + 1} total={words.length} />
             <VocabularyTracker words={words.slice(0, currentWordIndex + 1)} />
             <GameMap map={gameMap} playerPosition={playerPosition} />
+            {message && <div className="message">{message}</div>} {/* Display the message */}
         </div>
     );
 }

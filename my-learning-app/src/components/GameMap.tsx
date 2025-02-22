@@ -12,14 +12,14 @@ function GameMap({ map, playerPosition }: GameMapProps) {
                 <div key={rowIndex} className="game-row">
                     {row.map((cell, colIndex) => {
                         let cellContent = cell;
-
-                        if (rowIndex === playerPosition.row && colIndex === playerPosition.col) {
-                            cellContent = 'P'; // Player
-                        }
+                        let isPlayer = rowIndex === playerPosition.row && colIndex === playerPosition.col;
 
                         return (
-                            <span key={colIndex} className="game-cell">
-                                {cellContent}
+                            <span
+                                key={colIndex}
+                                className={`game-cell ${isPlayer ? 'player-cell' : ''}`}
+                            >
+                                {isPlayer ? 'P' : cellContent}
                             </span>
                         );
                     })}

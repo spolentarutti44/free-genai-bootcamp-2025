@@ -14,6 +14,20 @@ The user will have to answer the question by selecting the correct word from a d
 The game will have a vocabulary tracker that will show the user's vocabulary
 The game will have a progress tracker that will show the user's progress
 
+## Map Example
+*************************
+*************************
+*************************
+*************************
+***********X*************
+*************************
+*************************
+*************************
+*************************
+X will be the player character
+movement is restricted to spaces with an *
+
+
 ## Gameplay
 The game will be a MUD game that will have a single player
 The game will have a vocabulary tracker that will show the user's vocabulary
@@ -22,3 +36,9 @@ The game will have a game map that will show the user's progress
 The game will have a game map that will show the user's progress
 The game will have a simple text based interface
 Defeat the monster to progress the characters experience and raise their level and basic stats
+While traversing the map the user will have to answer questions to progress
+The questions will be in the form of a sentence in english with a substitue word in {language}=[Salish]
+The user will have to answer the question by selecting the correct word from a dropdown
+The words will populte from the backend API GET request to the /words endpoint
+
+
