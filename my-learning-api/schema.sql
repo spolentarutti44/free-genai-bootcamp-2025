@@ -30,6 +30,8 @@ CREATE TABLE words (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kanji TEXT NOT NULL,
     romaji TEXT NOT NULL,
+    salish TEXT NOT NULL,
+    navajo TEXT NOT NULL,
     english TEXT NOT NULL,
     parts TEXT -- JSON
 );
