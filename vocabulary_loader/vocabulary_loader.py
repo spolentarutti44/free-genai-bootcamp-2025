@@ -104,12 +104,20 @@ def insert_words_into_db(words):
 
 # Function to generate vocabulary using Amazon Bedrock
 def generate_vocabulary(prompt):
+    aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+
+    # Initialize the AWS client
+    boto3.client(
+        's3',
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key
+    )
     session = boto3.session.Session()
-    region = "us-east-1"
     
     bedrock_client = boto3.client(
         service_name='bedrock-runtime',
-        region_name=region
+        region_name='us-east-1'
     )
 
     model_id = "amazon.nova-lite-v1:0"
@@ -300,7 +308,3 @@ elif operation == "Import/Export":
                     st.error(f"Error adding imported words: {e}")
                 finally:
                     conn.close()
-
-# The following is needed for the boto3 library to function correctly
-os.environ['AWS_ACCESS_KEY_ID'] = ''
-os.environ['AWS_SECRET_ACCESS_KEY'] = '' 
