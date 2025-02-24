@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#language-learning-assistant-main/
+venv/
+
 # Distribution / packaging
 .Python
 env/
@@ -93,4 +96,7 @@ temp/
 
 # SQLite Database
 *.db
-language_learning.db 
+language_learning.db
+
+# Add this line to ensure the .env file is ignored
+.env 
