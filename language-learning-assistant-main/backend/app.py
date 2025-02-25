@@ -1,12 +1,9 @@
 from flask import Flask, request, jsonify
 from rag import RAGAgent, SimpleRetrievalTool
 from chat import BedrockChat
-from database import initialize_db
 
 app = Flask(__name__)
 
-# Initialize the database
-initialize_db()
 
 # Initialize the retrieval tool and RAG agent
 retrieval_tool = SimpleRetrievalTool()

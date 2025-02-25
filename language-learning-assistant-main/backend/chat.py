@@ -4,7 +4,6 @@ import boto3
 import streamlit as st
 from typing import Optional, Dict, Any
 from rag import RAGAgent, SimpleRetrievalTool
-from database import initialize_db
 
 
 # Model ID

@@ -2,7 +2,6 @@ from pinecone_setup import index
 from sentence_transformers import SentenceTransformer
 from typing import List
 import random
-from database import add_chat_entry
 
 # Load a pre-trained model
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -23,8 +22,9 @@ class SimpleRetrievalTool:
         return "No relevant information found."
 
     def add_to_knowledge_base(self, role: str, content: str):
-        add_chat_entry(role, content)
-
+        #add_chat_entry(role, content)
+        pass
+        
 
 class RAGAgent:
     def __init__(self, retrieval_tool: SimpleRetrievalTool, model):
