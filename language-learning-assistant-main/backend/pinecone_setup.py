@@ -16,11 +16,14 @@ index_name = 'language-learning'
 if index_name in pc.list_indexes().names():
     pc.delete_index(index_name)  # Delete the existing index if it exists
 
+# Define the serverless specification
+spec = ServerlessSpec(cloud='aws', region='us-east-1')  # Adjust region as needed
+
 pc.create_index(
     name=index_name,
     dimension=384,  # Update dimension to match the embedding model
     metric='cosine',  # Choose an appropriate metric
-    spec=ServerlessSpec(cloud='aws', region='us-east-1')  # Adjust region as needed
+    spec=spec  # Pass the spec instance
 )
 
 # Access the index through the Pinecone client
