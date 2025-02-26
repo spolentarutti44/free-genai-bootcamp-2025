@@ -1,0 +1,14 @@
+  - python=3.8
+  - numpy
+  - pandas
+  - opencv
+  - mediapipe
+  - torch
+  - torchvision
+  - matplotlib
+  - scikit-learn
+  - kagglehub
+  - pip
+  - pip:
+    - pinecone-client
+    - python-dotenv 

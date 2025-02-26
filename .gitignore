@@ -5,6 +5,7 @@ __pycache__/
 
 #language-learning-assistant-main/
 venv/
+writing-app-aws-agent/
 
 # Distribution / packaging
 .Python
