@@ -13,8 +13,10 @@ import matplotlib.pyplot as plt
 import os
 
 # Set the paths to the training and validation files
-train_file_path = "data/sign_mnist_train/sign_mnist_train.csv"  # Adjust this path as needed
-val_file_path = "data/sign_mnist_test/sign_mnist_test.csv"    # Adjust this path as needed
+#train_file_path = "data/sign_mnist_train/sign_mnist_train.csv"  # Adjust this path as needed
+#val_file_path = "data/sign_mnist_test/sign_mnist_test.csv"    # Adjust this path as needed
+train_file_path = "data/slp-training/model_tranining.csv"  # Adjust this path as needed
+val_file_path = "data/slp-training/model_validation.csv"    # Adjust this path as needed
 
 # Check if files exist
 if not os.path.exists(train_file_path):
@@ -82,25 +84,57 @@ class SimpleCNN(nn.Module):
 # Initialize the model, loss function, and optimizer
 model = SimpleCNN()
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
 # Training loop
 def train_model(num_epochs=10):
+    train_losses = []
+    val_losses = []
+    best_val_loss = float('inf')
+    
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
         for images, labels in train_loader:
             optimizer.zero_grad()
-            outputs = model(images)  # Remove the unsqueeze(1) - the transform already created the channel dimension
+            outputs = model(images)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
         
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_loader):.4f}")
-
-# Train the model
-train_model()
+        # Calculate average training loss
+        avg_train_loss = running_loss/len(train_loader)
+        train_losses.append(avg_train_loss)
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for images, labels in val_loader:
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+                
+        avg_val_loss = val_loss/len(val_loader)
+        val_losses.append(avg_val_loss)
+        
+        print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+        
+        # Save the model if validation loss improves
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            # Save both the model architecture and weights
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': avg_train_loss,
+                'val_loss': avg_val_loss,
+            }, 'best_model.pt')
+            print(f"Model saved at epoch {epoch+1} with validation loss: {avg_val_loss:.4f}")
+    
+    return train_losses, val_losses
 
 def plot_training_history(train_losses, val_losses):
     plt.figure(figsize=(10, 6))
@@ -114,8 +148,17 @@ def plot_training_history(train_losses, val_losses):
     plt.close()
 
 def main():
-    # Train model
-    train_losses, val_losses = train_model()
+    # Train the model
+    train_losses, val_losses = train_model(num_epochs=50)
+    
+    # Save the final model regardless of performance
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+    }, 'final_model.pt')
+    print("Training complete. Final model saved.")
     
     # Plot training history
     plot_training_history(train_losses, val_losses)
