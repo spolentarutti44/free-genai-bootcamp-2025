@@ -42,7 +42,7 @@ def main():
     cap = cv2.VideoCapture(0)
     
     # Ensure the CSV file exists
-    csv_file = 'data/slp-training/model_validation.csv'
+    csv_file = 'data/slp-training/model_training.csv'
     os.makedirs(os.path.dirname(csv_file), exist_ok=True)  # Create directory if it doesn't exist
     if not os.path.exists(csv_file):
         with open(csv_file, 'w', newline='') as f:
