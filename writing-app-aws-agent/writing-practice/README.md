@@ -20,6 +20,8 @@ This application helps users learn the Salish language through an interactive in
 
 ## Setup
 
+## Commit a338e2f9f39d5c273a02a5186e6c71f754828c8e associated with this project
+
 1. Install dependencies:
    ```bash
    pip install -r requirements.txt
