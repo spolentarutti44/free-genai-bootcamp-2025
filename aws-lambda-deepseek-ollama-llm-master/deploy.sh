@@ -25,7 +25,7 @@ fi
 
 # Step 3: Build and Tag Docker Image
 echo "Building Docker image..."
-docker build --platform linux/amd64 --progress=plain -t ${ECR_REPO_NAME}:latest ./lambdas/ollama_llm
+docker build --platform linux/amd64 --provenance=false --progress=plain -t ${ECR_REPO_NAME}:latest ./lambdas/ollama_llm
 
 echo "Tagging image with timestamp ${IMAGE_TAG}..."
 docker tag ${ECR_REPO_NAME}:latest ${IMAGE_URI}
