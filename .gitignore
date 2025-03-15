@@ -5,7 +5,11 @@ __pycache__/
 
 #language-learning-assistant-main/
 venv/
-writing-app-aws-agent/
+writing-app-aws-agent/slp
+writing-app-aws-agent/aws-agent-example
+data/
+best_model.pt
+final_model.pt
 
 # Distribution / packaging
 .Python
