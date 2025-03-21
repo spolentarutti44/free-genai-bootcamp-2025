@@ -17,7 +17,7 @@ A gamified language learning application that helps users learn Salish language 
 
 ## 🌟 Overview
 
-![SLP Lang Learn Gameplay](./public/images/gameplay.png)
+![SLP Lang Learn Gameplay](./my-learning-app/public/images/gameplay.png)
 
 SLP Lang Learn combines language learning with gameplay, creating an engaging experience where users explore a procedurally generated world while collecting "language treasures." When a treasure is found, players must correctly translate Salish words to English to collect the treasure and advance their learning.
 
