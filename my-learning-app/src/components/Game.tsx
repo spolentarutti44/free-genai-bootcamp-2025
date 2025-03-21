@@ -36,7 +36,7 @@ function Game() {
         // Fetch words from the backend API
         const fetchWords = async () => {
             try {
-                const response = await fetch('http://127.0.0.1:5000/words'); // Explicitly use 127.0.0.1
+                const response = await fetch('http://127.0.0.1:5001/words'); // Update to port 5001
                 const data = await response.json();
                 setWords(data.items); // Assuming the API returns a list of words in the 'items' field
             } catch (error) {

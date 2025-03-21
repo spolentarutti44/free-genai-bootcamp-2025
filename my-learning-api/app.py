@@ -4,10 +4,28 @@ import json
 from database import init_db, get_db, init_app
 from datetime import datetime
 import os
-from flask_cors import CORS  # Import CORS
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for the entire app
+
+# Configure CORS properly
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            # Add any other origins you need
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
+
+# Add OPTIONS method handler to ensure preflight requests work
+@app.route('/words', methods=['OPTIONS'])
+def handle_options():
+    response = jsonify({'status': 'ok'})
+    return response
 
 # Configure the database path
 app.config['DATABASE'] = 'learning_portal.db'
@@ -58,6 +76,55 @@ def get_paginated_results(query, page, per_page, sort_by, order):
         'items': results
     }
 
+# Add this function to handle Qdrant queries (replace the existing get_paginated_results)
+def get_paginated_results_qdrant(collection, page=1, per_page=10, sort_by=None, order=None):
+    """
+    Get paginated results from a Qdrant collection.
+    """
+    db = get_db()
+    
+    # Calculate offset
+    offset = (page - 1) * per_page
+    
+    # Get total count
+    # In Qdrant, we can use count() method
+    count_result = db.count(collection_name=collection)
+    total_count = count_result.count
+    
+    # Setup ordering
+    # Qdrant has different ordering mechanisms than SQL
+    # For this example, we'll implement a simple client-side sorting
+    
+    # Get records with pagination
+    search_result = db.scroll(
+        collection_name=collection,
+        limit=per_page,
+        offset=offset,
+        with_payload=True
+    )
+    
+    # Extract payloads
+    results = []
+    for scored_point in search_result.points:
+        item = scored_point.payload
+        results.append(item)
+    
+    # Client-side sorting (if needed)
+    if sort_by and results:
+        reverse = order.lower() == 'desc' if order else False
+        try:
+            results = sorted(results, key=lambda x: x.get(sort_by, ''), reverse=reverse)
+        except:
+            # If sorting fails (e.g., mixed types), we'll just return unsorted
+            pass
+    
+    return {
+        'page': page,
+        'per_page': per_page,
+        'total': total_count,
+        'items': results
+    }
+
 # New route for inserting words
 @app.route('/words', methods=['POST'])
 def insert_word():
@@ -94,16 +161,25 @@ def insert_word():
 # Routes
 @app.route('/words', methods=['GET'])
 def get_words():
-    page = request.args.get('page', 1, type=int)
-    sort_by = request.args.get('sort_by', 'kanji', type=str)
-    order = request.args.get('order', 'asc', type=str)
-    per_page = 10  # You can make this configurable
-
-    query = "SELECT * FROM words"
-    try:
-        return jsonify(get_paginated_results(query, page, per_page, sort_by, order))
-    except ValueError as e:
-        abort(400, description=str(e))
+    # Mock data for testing
+    sample_words = [
+        {"id": 1, "kanji": "山", "romaji": "yama", "english": "mountain"},
+        {"id": 2, "kanji": "川", "romaji": "kawa", "english": "river"},
+        {"id": 3, "kanji": "森", "romaji": "mori", "english": "forest"},
+        {"id": 4, "kanji": "空", "romaji": "sora", "english": "sky"},
+        {"id": 5, "kanji": "海", "romaji": "umi", "english": "sea"}
+    ]
+    
+    response = jsonify({
+        "page": 1,
+        "per_page": 10,
+        "total": len(sample_words),
+        "items": sample_words
+    })
+    
+    # Add CORS headers
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+    return response
 
 @app.route('/groups', methods=['GET'])
 def get_groups():
@@ -169,5 +245,12 @@ def log_review(session_id):
         db.rollback()
         abort(400, description="Foreign key constraint failed")
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    response = jsonify({"message": "pong"})
+    # Add CORS headers explicitly
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True, port=5001) 

@@ -10,6 +10,9 @@ writing-app-aws-agent/aws-agent-example
 data/
 best_model.pt
 final_model.pt
+my-learning-api/config.py
+my-learning-app/config.py
+lyric-extract-agent/config.py
 
 # Distribution / packaging
 .Python
@@ -105,3 +108,6 @@ language_learning.db
 
 # Add this line to ensure the .env file is ignored
 .env 
+lyric-extract-agent/config.py
+lyric-extract-agent/config.py
+my-learning-api/free-genai-bootcamp-2025.code-workspace
