@@ -77,21 +77,30 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
         }
         
         const data = await response.json();
+        console.log('API Response:', data);
         
-        // Use fallback words if API returns empty array
-        if (Array.isArray(data) && data.length > 0) {
-          setSalishWords(data);
-        } else {
-          console.warn('API returned empty data, using fallback words');
-          // Fallback words if API doesn't return any
-          setSalishWords([
-            { id: '1', english: "hello", salish: "huy" },
-            { id: '2', english: "thank you", salish: "huy' ch q'u" },
-            { id: '3', english: "water", salish: "qʷəlúltxʷ" },
-            { id: '4', english: "tree", salish: "sc'əɬálqəb" },
-            { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
-          ]);
+        // Check if data exists and has the expected structure with items array
+        if (data && Array.isArray(data.items) && data.items.length > 0) {
+          // Extract the words from the items array
+          const words = data.items.map((item: any) => ({
+            id: item.id || String(Math.random()), // Fallback to random ID if none exists
+            english: item.english,
+            salish: item.salish
+          }));
+          
+          setSalishWords(words);
+          return; // Exit early if we successfully set the words
         }
+        
+        console.warn('API response not in expected format:', data);
+        // Fallback words if API doesn't return expected format
+        setSalishWords([
+          { id: '1', english: "hello", salish: "huy" },
+          { id: '2', english: "thank you", salish: "huy' ch q'u" },
+          { id: '3', english: "water", salish: "qʷəlúltxʷ" },
+          { id: '4', english: "tree", salish: "sc'əɬálqəb" },
+          { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
+        ]);
       } catch (err) {
         console.error('Error fetching Salish words:', err);
         setError('Failed to load language data. Using sample data instead.');

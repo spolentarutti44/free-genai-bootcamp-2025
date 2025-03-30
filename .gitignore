@@ -111,3 +111,27 @@ language_learning.db
 lyric-extract-agent/config.py
 lyric-extract-agent/config.py
 my-learning-api/free-genai-bootcamp-2025.code-workspace
+
+# Configuration files
+**/config.py
+**/utils/config.py
+
+# Python environment
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
