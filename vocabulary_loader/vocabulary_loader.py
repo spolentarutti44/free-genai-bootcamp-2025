@@ -47,9 +47,26 @@ def fetch_words():
         st.error(f"Error fetching words: {e}")
         return []
 
+# Add this function to check for duplicates
+def is_duplicate_word(salish: str, english: str, existing_words: list) -> bool:
+    """Check if a word already exists in the collection."""
+    return any(
+        word['salish'].lower() == salish.lower() or 
+        word['english'].lower() == english.lower() 
+        for word in existing_words
+    )
+
 # Function to add a word to Qdrant
 def add_word(salish, english):
     try:
+        # First fetch existing words
+        existing_words = fetch_words()
+        
+        # Check for duplicates
+        if is_duplicate_word(salish, english, existing_words):
+            st.error(f"Word already exists! Either '{salish}' or '{english}' is already in the database.")
+            return False
+            
         # Generate a random integer ID
         point_id = random.randint(1, 2**31 - 1)  # Max 32-bit unsigned int
         client.upsert(
@@ -67,12 +84,25 @@ def add_word(salish, english):
             ]
         )
         st.success("Word added successfully!")
+        return True
     except Exception as e:
         st.error(f"Error adding word: {e}")
+        return False
 
 # Function to update a word in Qdrant
 def update_word(id, salish, english):
     try:
+        # First fetch existing words
+        existing_words = fetch_words()
+        
+        # Filter out the current word from duplicate check
+        other_words = [w for w in existing_words if str(w.get('id', '')) != str(id)]
+        
+        # Check for duplicates
+        if is_duplicate_word(salish, english, other_words):
+            st.error(f"Cannot update: Either '{salish}' or '{english}' already exists in another entry.")
+            return False
+            
         client.upsert(
             collection_name="words",
             points=[
@@ -88,8 +118,10 @@ def update_word(id, salish, english):
             ]
         )
         st.success("Word updated successfully!")
+        return True
     except Exception as e:
         st.error(f"Error updating word: {e}")
+        return False
 
 # Function to delete a word from Qdrant
 def delete_word(id):
@@ -106,8 +138,17 @@ def delete_word(id):
 
 def insert_words_into_db(words):
     try:
+        # First fetch existing words
+        existing_words = fetch_words()
         points = []
+        skipped_words = []
+        added_words = []
+
         for word in words:
+            if is_duplicate_word(word['salish'], word['english'], existing_words):
+                skipped_words.append(f"{word['salish']} - {word['english']}")
+                continue
+
             # Generate a random integer ID for each word
             point_id = random.randint(1, 2**31 - 1)  # Max 32-bit unsigned int
             points.append(
@@ -121,12 +162,21 @@ def insert_words_into_db(words):
                     vector=[0.0] * 384  # Placeholder vector
                 )
             )
+            added_words.append(f"{word['salish']} - {word['english']}")
         
-        client.upsert(
-            collection_name="words",
-            points=points
-        )
-        st.success("All words added successfully!")
+        if points:
+            client.upsert(
+                collection_name="words",
+                points=points
+            )
+            st.success(f"Added {len(points)} new words successfully!")
+            if added_words:
+                st.write("Added words:", added_words)
+        
+        if skipped_words:
+            st.warning(f"Skipped {len(skipped_words)} duplicate words:")
+            st.write("Skipped words:", skipped_words)
+            
     except Exception as e:
         st.error(f"Error inserting words: {e}")
 
@@ -152,12 +202,12 @@ def generate_vocabulary(prompt):
     content_type = "application/json"
     accept = "application/json"
 
-    # Update prompt to generate only Salish and English translations
+    # Update prompt to generate only Salish and English translations without backticks
     body = json.dumps({
         "messages": [
             {
                 "role": "user",
-                "content": [{"text": prompt + "Generate 10 words in the following format: ```Salish - English``` include only the words per line and no other information"}]
+                "content": [{"text": prompt + "Generate 10 words in the format: Salish - English. Include only the words per line and no other information, no backticks or special characters."}]
             }
         ]
     })
@@ -181,19 +231,30 @@ def generate_vocabulary(prompt):
 
 def parse_generated_text(generated_text):
     words = []
+    # Clean the text of any backticks
+    generated_text = generated_text.replace('`', '').strip()
+    
     for line in generated_text.split('\n'):
         if not line.strip():
             continue
         
+        # Clean each line of any backticks or extra whitespace
+        line = line.replace('`', '').strip()
         parts = line.split(' - ')
+        
         if len(parts) == 2:  # We expect 2 parts now: Salish and English
             salish = parts[0].strip()
             english = parts[1].strip()
             
-            words.append({
-                "salish": salish,
-                "english": english
-            })
+            # Additional cleaning of individual words
+            salish = salish.replace('`', '').strip()
+            english = english.replace('`', '').strip()
+            
+            if salish and english:  # Only add if both parts are non-empty
+                words.append({
+                    "salish": salish,
+                    "english": english
+                })
     return words
 
 # Streamlit UI
