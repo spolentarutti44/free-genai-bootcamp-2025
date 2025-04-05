@@ -15,10 +15,10 @@ interface Position {
   y: number;
 }
 
-interface SalishWord {
+interface WordData {
   id: string;
   english: string;
-  salish: string;
+  targetWord: string; // Generic field for the selected language's word
 }
 
 interface DefaultGameMapProps {
@@ -56,9 +56,19 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   const [message, setMessage] = useState<string>('Loading...');
   const [isGameActive, setIsGameActive] = useState<boolean>(false); // Flag for when player/map ready
   
+  // --- Language Selection State ---
+  const [selectedLanguage, setSelectedLanguage] = useState<'salish' | 'italian'>(() => {
+    return (localStorage.getItem('selectedLanguage') as 'salish' | 'italian') || 'salish';
+  });
+
+  // Persist language selection
+  useEffect(() => {
+    localStorage.setItem('selectedLanguage', selectedLanguage);
+  }, [selectedLanguage]);
+  
   // Translation challenge states
   const [isTranslationChallengeActive, setIsTranslationChallengeActive] = useState<boolean>(false);
-  const [currentWord, setCurrentWord] = useState<SalishWord | null>(null);
+  const [currentWord, setCurrentWord] = useState<WordData | null>(null); // Use WordData
   const [selectedWord, setSelectedWord] = useState<string>("");
   const [pendingTreasurePosition, setPendingTreasurePosition] = useState<Position | null>(null);
 
@@ -67,7 +77,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   const [encounteredWisp, setEncounteredWisp] = useState<Wisp | null>(null);
   
   // API data states
-  const [salishWords, setSalishWords] = useState<SalishWord[]>([]);
+  const [words, setWords] = useState<WordData[]>([]); // Renamed from salishWords
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,14 +117,17 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
       setEncounteredWisp(null);
   }, [encounteredWisp, updateWispCaptureStatus, setMessage, setTreasuresCollected, setIsBattleActive, setEncounteredWisp]);
 
-  // Fetch Salish words from the API on component mount
+  // Fetch words from the API based on selected language
   useEffect(() => {
-    const fetchSalishWords = async () => {
+    const fetchWords = async () => { // Renamed from fetchSalishWords
       try {
         setIsLoading(true);
         setError(null);
+        setWords([]); // Clear previous words on language change
         
-        const response = await fetch(`${apiBaseUrl}/words`);
+        console.log(`Fetching words for language: ${selectedLanguage}`);
+        // Include language in the API call
+        const response = await fetch(`${apiBaseUrl}/words?language=${selectedLanguage}`); 
         
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
@@ -124,41 +137,64 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
         console.log('API Response:', data);
         
         if (data && Array.isArray(data.items) && data.items.length > 0) {
-          const words = data.items.map((item: any) => ({
-            id: item.id || String(Math.random()),
+          const fetchedWords = data.items.map((item: any) => ({
+            id: item.id || String(Math.random()), // Ensure ID exists
             english: item.english,
-            salish: item.salish
+            // Use the correct field 'target_word' from the API payload
+            targetWord: item.target_word || `[Missing Target Word]`, // Changed from item[selectedLanguage]
           })); 
-          setSalishWords(words);
+          setWords(fetchedWords); // Use setWords
         } else {
-          console.warn('API response not in expected format:', data);
-          // Set fallback words
-           setSalishWords([
-            { id: '1', english: "hello", salish: "huy" },
-            { id: '2', english: "thank you", salish: "huy' ch q'u" },
-            { id: '3', english: "water", salish: "qʷəlúltxʷ" },
-            { id: '4', english: "tree", salish: "sc'əɬálqəb" },
-            { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
-          ]);
+          console.warn('API response not in expected format or empty:', data);
+          // Set language-specific fallback words
+          if (selectedLanguage === 'italian') {
+             setWords([
+               { id: 'it1', english: "hello", targetWord: "ciao" },
+               { id: 'it2', english: "thank you", targetWord: "grazie" },
+               { id: 'it3', english: "water", targetWord: "acqua" },
+               { id: 'it4', english: "tree", targetWord: "albero" },
+               { id: 'it5', english: "mountain", targetWord: "montagna" }
+             ]);
+          } else { // Default to Salish fallback
+             setWords([
+               { id: 'sa1', english: "hello", targetWord: "huy" },
+               { id: 'sa2', english: "thank you", targetWord: "huy' ch q'u" },
+               { id: 'sa3', english: "water", targetWord: "qʷəlúltxʷ" },
+               { id: 'sa4', english: "tree", targetWord: "sc'əɬálqəb" },
+               { id: 'sa5', english: "mountain", targetWord: "tukʷtukʷəʔtəd" }
+             ]);
+          }
         }
       } catch (err) {
-        console.error('Error fetching Salish words:', err);
-        setError('Failed to load language data. Using sample data instead.');
-        // Set fallback words
-         setSalishWords([
-            { id: '1', english: "hello", salish: "huy" },
-            { id: '2', english: "thank you", salish: "huy' ch q'u" },
-            { id: '3', english: "water", salish: "qʷəlúltxʷ" },
-            { id: '4', english: "tree", salish: "sc'əɬálqəb" },
-            { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
-          ]);
+        console.error(`Error fetching ${selectedLanguage} words:`, err);
+        setError(`Failed to load ${selectedLanguage} language data. Using sample data instead.`);
+        // Set language-specific fallback words on error
+        if (selectedLanguage === 'italian') {
+           setWords([
+             { id: 'it1', english: "hello", targetWord: "ciao" },
+             { id: 'it2', english: "thank you", targetWord: "grazie" },
+             { id: 'it3', english: "water", targetWord: "acqua" },
+             { id: 'it4', english: "tree", targetWord: "albero" },
+             { id: 'it5', english: "mountain", targetWord: "montagna" }
+           ]);
+        } else {
+           setWords([
+             { id: 'sa1', english: "hello", targetWord: "huy" },
+             { id: 'sa2', english: "thank you", targetWord: "huy' ch q'u" },
+             { id: 'sa3', english: "water", targetWord: "qʷəlúltxʷ" },
+             { id: 'sa4', english: "tree", targetWord: "sc'əɬálqəb" },
+             { id: 'sa5', english: "mountain", targetWord: "tukʷtukʷəʔtəd" }
+           ]);
+        }
       } finally {
-        // Loading is handled by map/player init now
+        // Ensure loading state is turned off after fetch attempt
+        setIsLoading(false); 
       }
     };
     
-    fetchSalishWords();
-  }, [apiBaseUrl]);
+    fetchWords();
+  // Add selectedLanguage to dependency array to refetch on change
+  }, [apiBaseUrl, selectedLanguage]); 
   
   // Generate a random map
   function generateMap(): MapCell[][] {
@@ -299,18 +335,17 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
 
   // Get a random translation challenge
   const getRandomTranslationChallenge = () => {
-    if (salishWords.length === 0) {
-      // Attempt to find a word related to the wisp's type/color if possible?
-      // For now, just return a fallback or a generic word.
+    if (words.length === 0) { // Use words state
+      // Return a generic fallback based on language
       return {
         id: 'fallback',
-        english: "spirit", // Generic fallback word
-        salish: "sk espírit" // Example Salish for spirit (replace with actual)
+        english: "word", 
+        targetWord: selectedLanguage === 'italian' ? "parola" : "skʷəkʷƛ̓" // Example generic words
       };
     }
     
-    const randomIndex = Math.floor(Math.random() * salishWords.length);
-    return salishWords[randomIndex];
+    const randomIndex = Math.floor(Math.random() * words.length); // Use words state
+    return words[randomIndex]; // Use words state
   };
   
   // Handle answer submission for Treasure challenge (Wrapped in useCallback)
@@ -321,10 +356,12 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     let correct = false;
     if (selectedWord === currentWord.english) {
         correct = true;
-        messageText = `Correct! "${currentWord.salish}" means "${currentWord.english}". Treasure collected!`;
+        // Use targetWord in the feedback message
+        messageText = `Correct! "${currentWord.targetWord}" means "${currentWord.english}". Treasure collected!`; 
         setTreasuresCollected(prev => prev + 1);
     } else {
-        messageText = `Incorrect. The correct answer for "${currentWord.salish}" was "${currentWord.english}". The treasure vanished...`;
+        // Use targetWord in the feedback message
+        messageText = `Incorrect. The correct answer for "${currentWord.targetWord}" was "${currentWord.english}". The treasure vanished...`;
     }
     
     // Replace the treasure with a path regardless of answer
@@ -363,7 +400,8 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           console.log("[Initialization Effect] Setting player position, activating game, disabling loading...");
           setPlayerPosition({ x, y });
           setIsGameActive(true); // ACTIVATE GAME
-          setMessage('Use arrow keys or WASD to move. Capture the wisps!'); // Set initial game message
+          // Update initial message based on language
+          setMessage(`Use arrow keys or WASD to move. Learn ${selectedLanguage === 'italian' ? 'Italian' : 'Salish'}!`); 
           setIsLoading(false); // <<< CRITICAL: Disable loading state
           foundStart = true;
           break;
@@ -414,12 +452,12 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
            const targetCellType = targetCell.type;
            if (targetCellType === 'treasure') {
              interactionOccurred = true;
-             if (salishWords.length > 0) {
+             if (words.length > 0) {
                 const word = getRandomTranslationChallenge();
                 setCurrentWord(word);
                 setIsTranslationChallengeActive(true);
                 setPendingTreasurePosition({ x: newX, y: newY });
-                specialTileMessage = `Treasure! Translate: "${word.salish}"`;
+                specialTileMessage = `Treasure! Translate: "${word.targetWord}"`;
              } else {
                 setTreasuresCollected(prev => prev + 1);
                 specialTileMessage = 'Treasure collected! (No language data)';
@@ -459,7 +497,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   // Dependencies include states controlling the listener and potentially gameMap for checking passability
-  }, [isGameActive, isTranslationChallengeActive, isBattleActive, playerPosition, gameMap, onPositionChange, salishWords, setPlayerPosition, setMessage, setCurrentWord, setIsTranslationChallengeActive, setPendingTreasurePosition, setTreasuresCollected, setGameMap]); 
+  }, [isGameActive, isTranslationChallengeActive, isBattleActive, playerPosition, gameMap, onPositionChange, words, setPlayerPosition, setMessage, setCurrentWord, setIsTranslationChallengeActive, setPendingTreasurePosition, setTreasuresCollected, setGameMap, selectedLanguage]); // Added words and selectedLanguage dependency
   
   // Regenerate Map Function (Wrapped in useCallback)
   const handleGenerateNewMap = useCallback(() => {
@@ -490,12 +528,17 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
 
   // Helper to get a relevant word for the battle popover (Wrapped in useCallback)
   const getWordForBattle = useCallback((): string => {
-      if (salishWords.length > 0) {
-          const randomSalishWord = salishWords[Math.floor(Math.random() * salishWords.length)];
-          return randomSalishWord.english; 
+      if (words.length > 0) { // Use words state
+          const randomWord = words[Math.floor(Math.random() * words.length)]; // Use words state
+          return randomWord.english; 
       }
       return "placeholder";
-  }, [salishWords]); // Depends on salishWords
+  }, [words]); // Depends on words state
+
+  // --- Dynamic Title based on Language ---
+  const gameTitle = selectedLanguage === 'italian' ? 'Italian Language Adventure' : 'Salish Language Adventure';
+  const gameSubtitle = `Explore, learn ${selectedLanguage === 'italian' ? 'Italian' : 'Salish'} words, and capture Wisps!`;
+  const translatePrompt = `Translate the following ${selectedLanguage === 'italian' ? 'Italian' : 'Salish'} word:`;
 
   return (
     <div className="sprite-game-container" tabIndex={0} /* Allow div to receive focus for key events */ >
@@ -506,14 +549,28 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           {error && <div className="error-message">{error}</div>}
           
           <div className="game-title-section">
-            <h2 className="game-title">Salish Language Adventure</h2>
-            <p className="game-subtitle">Explore, learn Salish words, and capture Wisps!</p>
+            {/* Dynamic Title and Subtitle */}
+            <h2 className="game-title">{gameTitle}</h2>
+            <p className="game-subtitle">{gameSubtitle}</p>
+            {/* --- Language Selection Dropdown --- */}
+            <div className="language-selector">
+                <label htmlFor="language-select">Choose Language: </label>
+                <select 
+                  id="language-select" 
+                  value={selectedLanguage} 
+                  onChange={(e) => setSelectedLanguage(e.target.value as 'salish' | 'italian')}
+                >
+                  <option value="salish">Salish</option>
+                  <option value="italian">Italian</option>
+                </select>
+            </div>
           </div>
           
           <div className="game-stats">
             <div>Treasures: {treasuresCollected}</div>
             {playerPosition.x !== -1 && <div>Pos: ({playerPosition.x}, {playerPosition.y})</div>}
-            <div>Words Loaded: {salishWords.length}</div>
+            {/* Use words state */}
+            <div>Words Loaded ({selectedLanguage}): {words.length}</div> 
             <div>Wisps Captured: {capturedWisps.length}</div>
           </div>
           
@@ -569,8 +626,10 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           
           {isTranslationChallengeActive && currentWord && (
             <div className="translation-challenge">
-              <p>Translate the following Salish word:</p>
-              <p className="challenge-word">{currentWord.salish}</p>
+              {/* Dynamic prompt */}
+              <p>{translatePrompt}</p> 
+              {/* Use targetWord */}
+              <p className="challenge-word">{currentWord.targetWord}</p> 
               
               <select
                 className="word-select"
@@ -578,8 +637,9 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
                 onChange={(e) => setSelectedWord(e.target.value)}
               >
                 <option value="">Select a translation</option>
-                {/* Provide options based on loaded Salish words */}
-                {salishWords.map((word) => (
+                {/* Provide options based on loaded words */}
+                {/* Use words state */}
+                {words.map((word) => ( 
                   <option key={word.id} value={word.english}>{word.english}</option>
                 ))}
               </select>

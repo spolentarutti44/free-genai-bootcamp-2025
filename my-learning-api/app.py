@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, abort
 from flask_cors import CORS
 from qdrant_client.http import models
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 import json
 from datetime import datetime
 from utils.qdrant_utils import get_qdrant_client
@@ -25,12 +26,35 @@ client = get_qdrant_client()
 def init_collections():
     try:
         # Collection for words
-        client.create_collection(
+        client.recreate_collection(
             collection_name="words",
             vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE),
         )
-    except Exception:
-        pass  # Collection already exists
+        # Create payload index for language filtering
+        client.create_payload_index(
+            collection_name="words",
+            field_name="language",
+            field_schema=models.PayloadSchemaType.KEYWORD
+        )
+        # Optional: Re-index other fields if needed or if recreate_collection clears them
+        client.create_payload_index(
+            collection_name="words",
+            field_name="salish",
+            field_schema=models.PayloadSchemaType.TEXT
+        )
+        client.create_payload_index(
+            collection_name="words",
+            field_name="english",
+            field_schema=models.PayloadSchemaType.TEXT
+        )
+        print("Collection 'words' recreated/initialized with language index.")
+    except Exception as e:
+        # Check if it's a connection error or other issue
+        print(f"Could not initialize collection 'words': {e}")
+        # Depending on the error, you might want to raise it or handle differently
+        # For now, let's assume if it fails, it might already exist in a usable state,
+        # but log the error.
+        pass
 
 # Initialize collections on startup
 init_collections()
@@ -55,31 +79,50 @@ def handle_options():
     return response
 
 # Get paginated results from Qdrant
-def get_paginated_results_qdrant(collection, page=1, per_page=10, sort_by=None, order=None):
+def get_paginated_results_qdrant(collection, page=1, per_page=10, sort_by=None, order=None, language=None):
     """
-    Get paginated results from a Qdrant collection.
+    Get paginated results from a Qdrant collection, optionally filtering by language.
     """
     # Calculate offset
     offset = (page - 1) * per_page
     
+    # Build filter based on language
+    query_filter = None
+    if language:
+        query_filter = Filter(
+            must=[
+                FieldCondition(
+                    key="language",
+                    match=MatchValue(value=language)
+                )
+            ]
+        )
+        print(f"Applying filter for language: {language}") # Debug log
+
     try:
-        # Get total count
-        count_result = client.count(collection_name=collection)
-        total_count = count_result.count
-        
-        # Get records with pagination
-        search_result = client.scroll(
+        # Get total count with filter
+        count_result = client.count(
             collection_name=collection,
+            count_filter=query_filter, # Use count_filter here
+            exact=True # Use exact=True for potentially better accuracy with filters
+        )
+        total_count = count_result.count
+        print(f"Total count for language '{language}': {total_count}") # Debug log
+
+        # Get records with pagination and filter
+        search_result, next_offset = client.scroll( # scroll now returns a tuple
+            collection_name=collection,
+            scroll_filter=query_filter, # Use scroll_filter here
             limit=per_page,
             offset=offset,
-            with_payload=True
+            with_payload=True,
+            with_vectors=False # No need for vectors if just displaying words
         )
-        
+
         # Extract payloads
-        results = []
-        for point in search_result[0]:
-            results.append(point.payload)
-        
+        results = [point.payload for point in search_result] # Directly iterate search_result
+        print(f"Retrieved {len(results)} items for page {page}, language '{language}'") # Debug log
+
         # Client-side sorting (if needed)
         if sort_by and results:
             reverse = order.lower() == 'desc' if order else False
@@ -112,27 +155,34 @@ def insert_word():
 
     salish = data.get('salish')
     english = data.get('english')
+    language = data.get('language')
 
-    if not salish or not english:
-        abort(400, description="salish and english are required")
+    if not salish or not english or not language:
+        abort(400, description="salish, english, and language are required")
+
+    if language not in ["salish", "italian"]:
+        abort(400, description="language must be either 'salish' or 'italian'")
 
     try:
-        # Insert into Qdrant
+        point_id = str(datetime.now().timestamp()) + "-" + language
+
         client.upsert(
             collection_name="words",
             points=[
                 models.PointStruct(
-                    id=str(datetime.now().timestamp()),  # Use timestamp as ID
+                    id=point_id,
                     payload={
                         "salish": salish,
                         "english": english,
+                        "language": language,
                         "created_at": datetime.now().isoformat()
                     },
-                    vector=[0.0] * 384  # Placeholder vector
+                    vector=[0.0] * 384
                 )
             ]
         )
-        return jsonify({'status': 'success'}), 201
+        print(f"Inserted word: {{'salish': '{salish}', 'english': '{english}', 'language': '{language}'}}")
+        return jsonify({'status': 'success', 'id': point_id}), 201
     except Exception as e:
         print(f"Error inserting word: {e}")
         abort(500, description="Failed to insert word")
@@ -143,6 +193,18 @@ def get_words():
     per_page = request.args.get('per_page', 10, type=int)
     sort_by = request.args.get('sort_by', 'created_at')
     order = request.args.get('order', 'desc')
+    language = request.args.get('language', None, type=str)
+
+    if language and language not in ["salish", "italian"]:
+        print(f"Invalid language filter requested: {language}. Returning empty results.")
+        return jsonify({
+            'page': page,
+            'per_page': per_page,
+            'total': 0,
+            'items': []
+        })
+
+    print(f"Fetching words: page={page}, per_page={per_page}, sort_by={sort_by}, order={order}, language={language}")
 
     try:
         result = get_paginated_results_qdrant(
@@ -150,7 +212,8 @@ def get_words():
             page=page,
             per_page=per_page,
             sort_by=sort_by,
-            order=order
+            order=order,
+            language=language
         )
         return jsonify(result)
     except Exception as e:
