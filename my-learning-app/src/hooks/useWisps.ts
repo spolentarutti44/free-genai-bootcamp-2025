@@ -249,15 +249,17 @@ export const useWisps = ({
                           // Add to captured list if newly caught
                          console.log(`[updateWispCaptureStatus Hook] Calling setCapturedWisps for wisp ${wispId}`);
                          setCapturedWisps(prevCaptured => {
-                             console.log(`[updateWispCaptureStatus Hook] setCapturedWisps callback: prev length: ${prevCaptured.length}, adding:`, {...w, captured: true});
-                             return [...prevCaptured, {...w, captured: true}];
+                             // Avoid duplicates - check if already in list
+                             if (!prevCaptured.some(cw => cw.id === wispId)) {
+                                console.log(`[updateWispCaptureStatus Hook] Adding wisp ${wispId} to capturedWisps list.`);
+                                // Need the actual wisp object here!
+                                return [...prevCaptured, { ...w, captured: true }]; // Add the updated wisp
+                             }
+                             console.log(`[updateWispCaptureStatus Hook] Wisp ${wispId} already in capturedWisps list.`);
+                             return prevCaptured; // No change if already present
                          });
-                         return { ...w, captured: true };
-                     } else {
-                         console.log(`[updateWispCaptureStatus Hook] Wisp ${wispId} escaped battle.`);
-                          // If not caught, it remains uncaptured but might move away later
-                          return { ...w, captured: false }; // Ensure it's marked as not captured
-                      }
+                     }
+                     return { ...w, captured: caught }; // Return updated wisp for the main 'wisps' array
                   }
               }
               return w;
@@ -265,9 +267,8 @@ export const useWisps = ({
           // Only return a new array reference if a wisp's status actually changed
           return wispFoundAndChanged ? updatedWisps : prevWisps; 
       });
-  // `setWisps` and `setCapturedWisps` have stable references from useState
   }, [setWisps, setCapturedWisps]);
 
-  // Return the state and the memoized update function
+  // Return the states and the update function
   return { wisps, capturedWisps, updateWispCaptureStatus };
 }; 
