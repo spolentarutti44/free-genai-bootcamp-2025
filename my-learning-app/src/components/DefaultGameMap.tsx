@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/GameMap.css';
+import { useWisps, Wisp } from '../hooks/useWisps'; // Import the hook and Wisp type
 
 interface MapCell {
   type: string;
@@ -48,9 +49,10 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   
   // State variables
   const [gameMap, setGameMap] = useState<MapCell[][]>(() => generateMap());
-  const [playerPosition, setPlayerPosition] = useState<Position>({ x: Math.floor(mapWidth / 2), y: Math.floor(mapHeight / 2) });
+  const [playerPosition, setPlayerPosition] = useState<Position>({ x: -1, y: -1 }); // Initial invalid position
   const [treasuresCollected, setTreasuresCollected] = useState<number>(0);
-  const [message, setMessage] = useState<string>('Use arrow keys or WASD to move.');
+  const [message, setMessage] = useState<string>('Loading...');
+  const [isGameActive, setIsGameActive] = useState<boolean>(false); // Flag for when player/map ready - ENSURE THIS IS PRESENT
   
   // Translation challenge states
   const [isTranslationChallengeActive, setIsTranslationChallengeActive] = useState<boolean>(false);
@@ -62,7 +64,17 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   const [salishWords, setSalishWords] = useState<SalishWord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // --- Use the Wisp Hook --- 
+  const { wisps, capturedWisps } = useWisps({
+      gameMap,
+      playerPosition,
+      mapWidth,
+      mapHeight,
+      isGameActive: playerPosition.x !== -1, // Pass the active flag
+      onWispInteraction: setMessage // Pass setMessage to the hook for feedback
+  });
+
   // Fetch Salish words from the API on component mount
   useEffect(() => {
     const fetchSalishWords = async () => {
@@ -79,42 +91,37 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
         const data = await response.json();
         console.log('API Response:', data);
         
-        // Check if data exists and has the expected structure with items array
         if (data && Array.isArray(data.items) && data.items.length > 0) {
-          // Extract the words from the items array
           const words = data.items.map((item: any) => ({
-            id: item.id || String(Math.random()), // Fallback to random ID if none exists
+            id: item.id || String(Math.random()),
             english: item.english,
             salish: item.salish
-          }));
-          
+          })); 
           setSalishWords(words);
-          return; // Exit early if we successfully set the words
+        } else {
+          console.warn('API response not in expected format:', data);
+          // Set fallback words
+           setSalishWords([
+            { id: '1', english: "hello", salish: "huy" },
+            { id: '2', english: "thank you", salish: "huy' ch q'u" },
+            { id: '3', english: "water", salish: "qʷəlúltxʷ" },
+            { id: '4', english: "tree", salish: "sc'əɬálqəb" },
+            { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
+          ]);
         }
-        
-        console.warn('API response not in expected format:', data);
-        // Fallback words if API doesn't return expected format
-        setSalishWords([
-          { id: '1', english: "hello", salish: "huy" },
-          { id: '2', english: "thank you", salish: "huy' ch q'u" },
-          { id: '3', english: "water", salish: "qʷəlúltxʷ" },
-          { id: '4', english: "tree", salish: "sc'əɬálqəb" },
-          { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
-        ]);
       } catch (err) {
         console.error('Error fetching Salish words:', err);
         setError('Failed to load language data. Using sample data instead.');
-        
-        // Use fallback words if API fails
-        setSalishWords([
-          { id: '1', english: "hello", salish: "huy" },
-          { id: '2', english: "thank you", salish: "huy' ch q'u" },
-          { id: '3', english: "water", salish: "qʷəlúltxʷ" },
-          { id: '4', english: "tree", salish: "sc'əɬálqəb" },
-          { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
-        ]);
+        // Set fallback words
+         setSalishWords([
+            { id: '1', english: "hello", salish: "huy" },
+            { id: '2', english: "thank you", salish: "huy' ch q'u" },
+            { id: '3', english: "water", salish: "qʷəlúltxʷ" },
+            { id: '4', english: "tree", salish: "sc'əɬálqəb" },
+            { id: '5', english: "mountain", salish: "tukʷtukʷəʔtəd" }
+          ]);
       } finally {
-        setIsLoading(false);
+        // setIsLoading(false); // Loading is handled by map/player init now
       }
     };
     
@@ -123,6 +130,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   
   // Generate a random map
   function generateMap(): MapCell[][] {
+    console.log("[generateMap] Generating new map...");
     const map: MapCell[][] = [];
     
     // Fill with grass initially
@@ -203,7 +211,10 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
       let currentY = startY;
       
       while (currentX !== endX || currentY !== endY) {
-        map[currentY][currentX] = {...cellTypes.path};
+        // Ensure we don't overwrite non-grass cells with paths unless starting point
+        if (map[currentY]?.[currentX]?.type === 'grass' || (currentX === startX && currentY === startY)) {
+          map[currentY][currentX] = {...cellTypes.path};
+        }
         
         if (Math.abs(currentX - endX) > Math.abs(currentY - endY)) {
           currentX += currentX < endX ? 1 : -1;
@@ -211,13 +222,15 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           currentY += currentY < endY ? 1 : -1;
         }
         
-        // Avoid going out of bounds
+        // Avoid going out of bounds during path generation
         currentX = Math.max(0, Math.min(currentX, mapWidth - 1));
         currentY = Math.max(0, Math.min(currentY, mapHeight - 1));
       }
       
-      // Mark the end point
-      map[endY][endX] = {...cellTypes.path};
+      // Mark the end point as path if it's grass
+      if (map[endY]?.[endX]?.type === 'grass') {
+         map[endY][endX] = {...cellTypes.path};
+      }
     }
     
     // Add some treasures
@@ -225,7 +238,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     for (let i = 0; i < numTreasures; i++) {
       const x = Math.floor(Math.random() * mapWidth);
       const y = Math.floor(Math.random() * mapHeight);
-      if (map[y][x].passable) {
+      if (map[y]?.[x]?.passable) {
         map[y][x] = {...cellTypes.treasure};
       }
     }
@@ -235,7 +248,8 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     for (let i = 0; i < numHouses; i++) {
       const x = Math.floor(Math.random() * mapWidth);
       const y = Math.floor(Math.random() * mapHeight);
-      if (map[y][x].passable) {
+      // Ensure house doesn't overwrite treasure or cave
+      if (map[y]?.[x]?.passable && map[y]?.[x]?.type !== 'treasure' && map[y]?.[x]?.type !== 'cave') {
         map[y][x] = {...cellTypes.house};
       }
     }
@@ -243,13 +257,14 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     // Add a cave
     const caveX = Math.floor(Math.random() * mapWidth);
     const caveY = Math.floor(Math.random() * mapHeight);
-    if (map[caveY][caveX].passable) {
+     // Ensure cave doesn't overwrite treasure or house
+    if (map[caveY]?.[caveX]?.passable && map[caveY]?.[caveX]?.type !== 'treasure' && map[caveY]?.[caveX]?.type !== 'house') {
       map[caveY][caveX] = {...cellTypes.cave};
     }
     
     return map;
   };
-  
+
   // Get a random translation challenge
   const getRandomTranslationChallenge = () => {
     if (salishWords.length === 0) {
@@ -270,7 +285,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     
     if (selectedWord === currentWord.english) {
       // Correct answer
-      setMessage(`Correct! The Salish word "${currentWord.salish}" means "${currentWord.english}" in English.`);
+      setMessage(`Correct! "${currentWord.salish}" means "${currentWord.english}".`);
       setTreasuresCollected(prev => prev + 1);
       
       // Replace the treasure with a path in the map
@@ -279,7 +294,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
       setGameMap(newMap);
     } else {
       // Incorrect answer
-      setMessage(`Incorrect. Try again! The correct translation of "${currentWord.salish}" is "${currentWord.english}".`);
+      setMessage(`Incorrect. The correct answer for "${currentWord.salish}" was "${currentWord.english}".`);
     }
     
     // Reset the challenge
@@ -289,129 +304,172 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     setSelectedWord("");
   };
   
-  // Handle keyboard movement
+  // --- Initialization: Find Player Start & Set Active --- 
   useEffect(() => {
+    console.log("[Initialization Effect] Running due to map change...");
+    setIsLoading(true); // Ensure loading is true at the start of initialization
+    setIsGameActive(false); // Deactivate game logic during init
+    setMessage('Finding starting position...'); // Update loading message
+    let foundStart = false;
+
+    // Simplified search for any passable tile
+    console.log("[Initialization Effect] Searching for passable start tile...");
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        if (gameMap[y]?.[x]?.passable) {
+          console.log(`[Initialization Effect] Found valid player start at (${x}, ${y})`);
+          console.log("[Initialization Effect] Setting player position, activating game, disabling loading...");
+          setPlayerPosition({ x, y });
+          setIsGameActive(true); // ACTIVATE GAME
+          setMessage('Use arrow keys or WASD to move. Capture the wisps!'); // Set initial game message
+          setIsLoading(false); // <<< CRITICAL: Disable loading state
+          foundStart = true;
+          break;
+        }
+      }
+      if (foundStart) break;
+    }
+
+    if (!foundStart) {
+       console.error("[Initialization Effect] No valid starting position found on map!");
+       setMessage('Error: Could not find a starting position on the map! Generate a new one?');
+       setIsGameActive(false); // Keep game inactive
+       setIsLoading(false); // <<< CRITICAL: Also disable loading on error to show message/map
+    } else {
+        console.log("[Initialization Effect] Initialization complete.");
+    }
+  }, [gameMap]); // Depend only on gameMap reference
+
+  // Handle keyboard movement for Player
+  useEffect(() => {
+    // CORRECTED Condition: Only add listener if game is active and not in challenge
+    if (!isGameActive || isTranslationChallengeActive) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle movement if a translation challenge is active
-      if (isTranslationChallengeActive) return;
-      
       let newX = playerPosition.x;
       let newY = playerPosition.y;
+      let intentToMove = false; 
       
       switch (e.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-          newY = Math.max(0, playerPosition.y - 1);
-          break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-          newY = Math.min(mapHeight - 1, playerPosition.y + 1);
-          break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          newX = Math.max(0, playerPosition.x - 1);
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          newX = Math.min(mapWidth - 1, playerPosition.x + 1);
-          break;
-        default:
-          return;
+        case 'ArrowUp': case 'w': case 'W': newY--; intentToMove = true; break;
+        case 'ArrowDown': case 's': case 'S': newY++; intentToMove = true; break;
+        case 'ArrowLeft': case 'a': case 'A': newX--; intentToMove = true; break;
+        case 'ArrowRight': case 'd': case 'D': newX++; intentToMove = true; break;
+        default: return; 
       }
       
-      // Check if the new position is passable
-      if (gameMap[newY][newX].passable) {
-        let newMessage = '';
-        
-        // Check for special interactions
-        if (gameMap[newY][newX].type === 'treasure') {
-          // Only start a translation challenge if we have words
-          if (salishWords.length > 0) {
-            // Found a treasure - start a translation challenge
-            const word = getRandomTranslationChallenge();
-            setCurrentWord(word);
-            setIsTranslationChallengeActive(true);
-            setPendingTreasurePosition({ x: newX, y: newY });
-            newMessage = `You found a treasure! Translate the Salish word "${word.salish}" to English.`;
-          } else {
-            // No words available, just collect the treasure
-            setTreasuresCollected(prev => prev + 1);
-            newMessage = 'You found a treasure! (Language data not available)';
-            
-            // Replace the treasure with a path
-            const newMap = [...gameMap];
-            newMap[newY][newX] = {...cellTypes.path};
-            setGameMap(newMap);
-          }
-        } else if (gameMap[newY][newX].type === 'cave') {
-          newMessage = 'You entered a mysterious cave... 🕳️';
-        } else if (gameMap[newY][newX].type === 'path') {
-          newMessage = 'You are on a path. Where does it lead? ⬜';
-        } else {
-          newMessage = 'Moving through the terrain... 🌿';
-        }
-        
-        setPlayerPosition({ x: newX, y: newY });
-        setMessage(newMessage);
-        
-        if (onPositionChange) {
-          onPositionChange({ x: newX, y: newY });
-        }
-      } else {
-        setMessage(`Can't move there! That's a ${gameMap[newY][newX].type}. ${gameMap[newY][newX].symbol}`);
+      if (intentToMove) {
+        // console.log(`[Player Move] Key '${e.key}'. Intending to move to (${newX}, ${newY}) from (${playerPosition.x}, ${playerPosition.y})`);
+         
+         if (newX < 0 || newX >= mapWidth || newY < 0 || newY >= mapHeight) {
+            // console.log("[Player Move] Blocked: Out of bounds.");
+             // Only update message if not showing wisp interaction
+             if (!message.includes("captured") && !message.includes("escaped")) {
+                setMessage("Can't move off the map!");
+             }
+            return;
+         }
+
+         if (gameMap[newY]?.[newX]?.passable) {
+           // console.log(`[Player Move] Target (${newX}, ${newY}) is passable (${gameMap[newY][newX].type}).`);
+           let interactionOccurred = false; 
+           let specialTileMessage = '';
+
+           const targetCellType = gameMap[newY][newX].type;
+           if (targetCellType === 'treasure') {
+             interactionOccurred = true;
+             if (salishWords.length > 0) {
+                const word = getRandomTranslationChallenge();
+                setCurrentWord(word);
+                setIsTranslationChallengeActive(true);
+                setPendingTreasurePosition({ x: newX, y: newY });
+                specialTileMessage = `Treasure! Translate: "${word.salish}"`;
+                // console.log("[Player Move] Found Treasure - Starting Challenge.");
+             } else {
+                setTreasuresCollected(prev => prev + 1);
+                specialTileMessage = 'Treasure collected! (No language data)';
+                const newMap = [...gameMap]; newMap[newY][newX] = {...cellTypes.path};
+                setGameMap(newMap);
+                // console.log("[Player Move] Found Treasure - Collected (no words).");
+             }
+           } else if (targetCellType === 'cave') {
+             interactionOccurred = true;
+             specialTileMessage = 'You entered a mysterious cave... 🕳️';
+             // console.log("[Player Move] Entered Cave.");
+           }
+           
+           // Update Player Position -> Triggers Wisp Logic
+           // console.log(`[Player Move] Setting player position to (${newX}, ${newY}).`);
+           setPlayerPosition({ x: newX, y: newY });
+
+           // Set message *before* wisp logic runs, wisp logic might override
+           if (interactionOccurred) {
+               setMessage(specialTileMessage);
+           } else {
+                // Default message only if no special tile and no pending wisp message
+                if (!message.includes("captured") && !message.includes("escaped")) {
+                     if (targetCellType === 'path') setMessage('On the path... ⬜');
+                     else setMessage('Moving...');
+                }
+           }
+
+           if (onPositionChange) {
+             onPositionChange({ x: newX, y: newY });
+           }
+
+         } else {
+           // Impassable Tile
+           // console.log(`[Player Move] Blocked: Target (${newX}, ${newY}) is impassable (${gameMap[newY][newX]?.type}).`);
+            // Only update message if not showing wisp interaction
+            if (!message.includes("captured") && !message.includes("escaped")) {
+                setMessage(`Can't move into ${gameMap[newY][newX].type}! ${gameMap[newY][newX].symbol}`);
+            }
+         }
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [playerPosition, gameMap, onPositionChange, isTranslationChallengeActive, salishWords]);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  // Re-add listener if game becomes active or challenge ends
+  }, [isGameActive, isTranslationChallengeActive, playerPosition, gameMap, onPositionChange, salishWords, message]); 
   
-  // Find an initial passable position for the player
-  useEffect(() => {
-    // Look for a passable cell near the center
-    for (let y = Math.floor(mapHeight / 2); y < mapHeight; y++) {
-      for (let x = Math.floor(mapWidth / 2); x < mapWidth; x++) {
-        if (gameMap[y][x].passable) {
-          setPlayerPosition({ x, y });
-          return;
-        }
-      }
-    }
+  // Regenerate Map Function
+  const handleGenerateNewMap = () => {
+    console.log("[handleGenerateNewMap] User clicked Generate New Map");
+    setIsLoading(true); // Show loading while regenerating
+    setPlayerPosition({ x: -1, y: -1 }); // Invalidate player position
+    setMessage('Generating new map...');
     
-    // Fallback: scan the entire map
-    for (let y = 0; y < mapHeight; y++) {
-      for (let x = 0; x < mapWidth; x++) {
-        if (gameMap[y][x].passable) {
-          setPlayerPosition({ x, y });
-          return;
-        }
-      }
-    }
-  }, [gameMap]);
-  
+    // Generate map (triggers initialization useEffect)
+    setGameMap(generateMap()); 
+    
+    // Reset other states
+    setTreasuresCollected(0);
+    setIsTranslationChallengeActive(false);
+    setCurrentWord(null);
+    setPendingTreasurePosition(null);
+    setSelectedWord("");
+    // No need to reset wisps here, init effect handles it
+  };
+
   return (
-    <div className="sprite-game-container">
+    <div className="sprite-game-container" tabIndex={0} /* Allow div to receive focus for key events */ >
       {isLoading ? (
-        <div className="loading-message">Loading language data...</div>
+        <div className="loading-message">{message}</div> // Show current message during load
       ) : (
         <>
           {error && <div className="error-message">{error}</div>}
           
           <div className="game-title-section">
             <h2 className="game-title">Salish Language Adventure</h2>
-            <p className="game-subtitle">Explore the world and collect language treasures</p>
+            <p className="game-subtitle">Explore, learn Salish words, and capture Wisps!</p>
           </div>
           
           <div className="game-stats">
             <div>Treasures: {treasuresCollected}</div>
-            <div>Position: ({playerPosition.x}, {playerPosition.y})</div>
-            <div>Words in DB: {salishWords.length}</div>
+            {playerPosition.x !== -1 && <div>Pos: ({playerPosition.x}, {playerPosition.y})</div>}
+            <div>Words: {salishWords.length}</div>
+            <div>Wisps Captured: {capturedWisps.length}</div>
           </div>
           
           <div className="sprite-map">
@@ -421,16 +479,41 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
                   <div 
                     key={`${x}-${y}`} 
                     className={`map-cell ${cell.type}`}
-                    style={{ backgroundColor: cell.color }}
+                    style={{ backgroundColor: cell.color, position: 'relative' }}
                   >
                     {playerPosition.x === x && playerPosition.y === y ? 
-                      <span className="player">X</span> : 
+                      <span className="player">@</span> : 
                       <span>{cell.symbol}</span>
                     }
                   </div>
                 ))}
               </div>
             ))}
+            {/* Render Wisps - Simplified Positioning */} 
+            {wisps.map((wisp: Wisp) => {
+               // Calculate position first for logging
+               const wispLeft = `${wisp.position.x * 30}px`; // No offset
+               const wispTop = `${wisp.position.y * 30}px`; // No offset
+               // console.log(`[Render Wisp] ID: ${wisp.id}, Pos: (${wisp.position.x}, ${wisp.position.y}), CSS: left=${wispLeft}, top=${wispTop}`);
+
+              return !wisp.captured && (
+                <div key={wisp.id} 
+                  className="wisp-entity" 
+                  title={`${wisp.rarity} ${wisp.name}`}
+                  style={{
+                    position: 'absolute',
+                    left: wispLeft, // Use calculated value
+                    top: wispTop,   // Use calculated value
+                    width: '14px',
+                    height: '14px',
+                    backgroundColor: wisp.color, 
+                    borderRadius: '50%', 
+                    zIndex: 10, 
+                    border: '1px solid rgba(255, 255, 255, 0.5)', 
+                    boxShadow: `0 0 5px ${wisp.color}` 
+                  }}/>
+              )
+            })}
           </div>
           
           <div className="game-message">
@@ -448,7 +531,6 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
                 onChange={(e) => setSelectedWord(e.target.value)}
               >
                 <option value="">Select a translation</option>
-                {/* Show all words as options to make it more challenging */}
                 {salishWords.map((word) => (
                   <option key={word.id} value={word.english}>{word.english}</option>
                 ))}
@@ -462,7 +544,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           
           <div className="game-controls">
             <p>Use arrow keys or WASD to move</p>
-            <button onClick={() => setGameMap(generateMap())}>Generate New Map</button>
+            <button onClick={handleGenerateNewMap}>Generate New Map</button>
           </div>
         </>
       )}
