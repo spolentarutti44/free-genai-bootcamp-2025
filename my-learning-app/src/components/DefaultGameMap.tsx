@@ -55,6 +55,8 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   const [currentWord, setCurrentWord] = useState<WordData | null>(null); // Use WordData
   const [selectedWord, setSelectedWord] = useState<string>("");
   const [pendingTreasurePosition, setPendingTreasurePosition] = useState<Position | null>(null);
+  // --- Add state for the translation options ---
+  const [translationOptions, setTranslationOptions] = useState<string[]>([]);
 
   // Battle Popover States
   const [isBattleActive, setIsBattleActive] = useState<boolean>(false);
@@ -230,9 +232,32 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
              interactionOccurred = true;
              if (words.length > 0) { // Use words from hook
                 const word = getRandomTranslationChallenge();
+                
+                // --- Generate Translation Options ---
+                const correctAnswer = word.english;
+                const otherWords = words.filter(w => w.id !== word.id);
+                
+                // Shuffle other words to get random incorrect options
+                const shuffledOthers = [...otherWords].sort(() => 0.5 - Math.random());
+                
+                // Take up to 4 incorrect options
+                const incorrectOptions = shuffledOthers.slice(0, 4).map(w => w.english);
+                
+                // Combine correct and incorrect, then shuffle the final list
+                let options = [correctAnswer, ...incorrectOptions];
+                // Ensure we have exactly 5 options if possible, padding if needed (though unlikely with enough words)
+                while (options.length < 5 && shuffledOthers.length > options.length -1) {
+                   // This logic might be redundant if words.length > 5, but handles edge case
+                   options.push(shuffledOthers[options.length - 1].english);
+                }
+                options = options.sort(() => 0.5 - Math.random()); 
+                // --- End Generate Options ---
+
+                setTranslationOptions(options); // Set the options state
                 setCurrentWord(word);
                 setIsTranslationChallengeActive(true);
                 setPendingTreasurePosition({ x: newX, y: newY });
+                setSelectedWord(""); // Reset selection
                 specialTileMessage = `Treasure! Translate: "${word.targetWord}"`;
              } else {
                 setTreasuresCollected(prev => prev + 1);
@@ -408,10 +433,9 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
                 onChange={(e) => setSelectedWord(e.target.value)}
               >
                 <option value="">Select a translation</option>
-                {/* Provide options based on loaded words */}
-                {/* Use words state from hook */}
-                {words.map((word) => ( 
-                  <option key={word.id} value={word.english}>{word.english}</option>
+                {/* --- Use translationOptions state for dropdown --- */}
+                {translationOptions.map((option, index) => ( 
+                  <option key={`${currentWord?.id}-${index}`} value={option}>{option}</option> // Use index for key as options can repeat across challenges
                 ))}
               </select>
               

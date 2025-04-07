@@ -137,7 +137,12 @@ export const useWisps = ({
       for (const wisp of currentWisps) {
           // Log positions just before the check
           console.log(`[useWisps Check] Comparing Player (${playerPosition.x},${playerPosition.y}) with Wisp ${wisp.id} at (${wisp.position.x},${wisp.position.y}), Captured: ${wisp.captured}`);
-          if (!wisp.captured && wisp.position.x === playerPosition.x && wisp.position.y === playerPosition.y) {
+
+          // Check if wisp is not captured and within 2 spaces of the player
+          if (!wisp.captured && 
+              Math.abs(wisp.position.x - playerPosition.x) <= 1 && 
+              Math.abs(wisp.position.y - playerPosition.y) <= 1) 
+          {
               console.log(`[useWisps Encounter] MATCH FOUND! Triggering encounter for Wisp ${wisp.id}.`);
               onWispEncounter(wisp); 
               interactionTriggered = true;

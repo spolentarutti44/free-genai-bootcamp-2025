@@ -12,11 +12,11 @@ interface BattlePopoverProps {
 
 // Constants for the mini-game
 const BAR_WIDTH = 300; // px width of the visual bar
-const MARKER_WIDTH = 10; // px width of the marker
+const MARKER_WIDTH = 5; // px width of the marker
 const CENTER_TARGET = 50; // Target position (center)
-const SUCCESS_THRESHOLD = 15; // +/- from center for success
-const MAX_BOUNCES = 12; // 6 full back-and-forth cycles
-const BASE_SPEED_MS = 10; // Decreased for faster default speed
+const SUCCESS_THRESHOLD = 2; // +/- from center for success
+const MAX_BOUNCES = 4; // 6 full back-and-forth cycles
+const BASE_SPEED_MS = 4; // Decreased for faster default speed
 
 const BattlePopover: React.FC<BattlePopoverProps> = ({ wispRarity, onClose }) => {
   const [phase, setPhase] = useState<BattlePhase>('battle');
