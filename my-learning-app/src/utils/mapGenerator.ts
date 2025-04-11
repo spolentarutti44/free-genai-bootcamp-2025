@@ -23,14 +23,15 @@ export const cellTypes: {[key: string]: MapCell} = {
 };
 
 /**
- * Generates a random game map.
+ * Generates a random game map and counts the treasures placed.
  * @param mapWidth The desired width of the map.
  * @param mapHeight The desired height of the map.
- * @returns A 2D array representing the generated map.
+ * @returns An object containing the generated map (2D array) and the count of treasures placed.
  */
-export function generateMap(mapWidth: number, mapHeight: number): MapCell[][] {
+export function generateMap(mapWidth: number, mapHeight: number): { map: MapCell[][]; treasureCount: number } {
   console.log("[generateMap Util] Generating new map...");
   const map: MapCell[][] = [];
+  let treasureCount = 0;
 
   // Fill with grass initially
   for (let y = 0; y < mapHeight; y++) {
@@ -134,13 +135,23 @@ export function generateMap(mapWidth: number, mapHeight: number): MapCell[][] {
 
   // Add some treasures
   const numTreasures = Math.floor(Math.random() * 5) + 3;
-  for (let i = 0; i < numTreasures; i++) {
-    const x = Math.floor(Math.random() * mapWidth);
-    const y = Math.floor(Math.random() * mapHeight);
-    if (map[y]?.[x]?.passable) {
-      map[y][x] = {...cellTypes.treasure};
-    }
+  let treasuresPlaced = 0;
+  let attempts = 0;
+  const maxAttempts = numTreasures * 5;
+
+  while (treasuresPlaced < numTreasures && attempts < maxAttempts) {
+      const x = Math.floor(Math.random() * mapWidth);
+      const y = Math.floor(Math.random() * mapHeight);
+      if (map[y]?.[x]?.passable) {
+          if (map[y][x].type !== 'treasure') {
+              map[y][x] = {...cellTypes.treasure};
+              treasuresPlaced++;
+          }
+      }
+      attempts++;
   }
+  treasureCount = treasuresPlaced;
+  console.log(`[generateMap Util] Placed ${treasureCount} treasures.`);
 
   // Add some houses
   const numHouses = Math.floor(Math.random() * 3) + 1;
@@ -161,5 +172,5 @@ export function generateMap(mapWidth: number, mapHeight: number): MapCell[][] {
     map[caveY][caveX] = {...cellTypes.cave};
   }
 
-  return map;
+  return { map, treasureCount };
 }; 

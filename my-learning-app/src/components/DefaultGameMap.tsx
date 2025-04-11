@@ -28,10 +28,18 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
   const mapHeight = 15;
   
   // State variables
-  const [gameMap, setGameMap] = useState<MapCell[][]>(() => generateMap(mapWidth, mapHeight));
+  const [initialMapData, setInitialMapData] = useState(() => {
+    console.log("[Initial State] Generating initial map data...");
+    const { map, treasureCount } = generateMap(mapWidth, mapHeight);
+    console.log(`[Initial State] Initial map generated with ${treasureCount} treasures.`);
+    return { map, treasureCount };
+  });
+  const [gameMap, setGameMap] = useState<MapCell[][]>(initialMapData.map);
+  const [totalTreasuresOnMap, setTotalTreasuresOnMap] = useState<number>(initialMapData.treasureCount);
   const [playerPosition, setPlayerPosition] = useState<Position>({ x: -1, y: -1 });
   const [mapGenerationKey, setMapGenerationKey] = useState<number>(0); // Key to trigger init
-  const [treasuresCollected, setTreasuresCollected] = useState<number>(0);
+  const [treasuresCollectedThisMap, setTreasuresCollectedThisMap] = useState<number>(0); // Renamed state
+  const [totalScore, setTotalScore] = useState<number>(0); // New state for persistent score
   const [message, setMessage] = useState<string>('Initializing...'); // Updated initial message
   const [isGameActive, setIsGameActive] = useState<boolean>(false); // Flag for when player/map ready
   
@@ -77,7 +85,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
       playerPosition,
       mapWidth,
       mapHeight,
-      isGameActive: playerPosition.x !== -1 && !isBattleActive, 
+      isGameActive: playerPosition.x !== -1 && !isBattleActive && !isLoading, // Also check overall isLoading
       onWispEncounter: handleWispEncounter // Pass the memoized handler
   });
 
@@ -88,15 +96,17 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           // updateWispCaptureStatus reference should be stable after we modify useWisps
           updateWispCaptureStatus(encounteredWisp.id, result.caught);
           if (result.caught) {
-              setMessage(`Successfully caught the ${encounteredWisp.rarity} ${encounteredWisp.name}! You got ${result.treasureMultiplier}x treasure!`);
-              setTreasuresCollected(prev => prev + result.treasureMultiplier);
+              // Update total score based on wisp capture multiplier
+              const scoreGained = result.treasureMultiplier; 
+              setMessage(`Successfully caught the ${encounteredWisp.rarity} ${encounteredWisp.name}! Score +${scoreGained}!`);
+              setTotalScore(prev => prev + scoreGained); // Add multiplier to total score
           } else {
               setMessage(`The ${encounteredWisp.rarity} ${encounteredWisp.name} got away...`);
           }
       }
       setIsBattleActive(false);
       setEncounteredWisp(null);
-  }, [encounteredWisp, updateWispCaptureStatus, setMessage, setTreasuresCollected, setIsBattleActive, setEncounteredWisp]);
+  }, [encounteredWisp, updateWispCaptureStatus, setMessage, setTotalScore, setIsBattleActive, setEncounteredWisp]); // Added setTotalScore
 
   // Get a random translation challenge
   const getRandomTranslationChallenge = () => {
@@ -113,6 +123,45 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     return words[randomIndex]; // Use words state from hook
   };
   
+  // Function to trigger map regeneration (used by button and auto-reset)
+  const regenerateMap = useCallback((preserveScore: boolean) => {
+    console.log("[regenerateMap] Triggered. Preserve score:", preserveScore);
+    setMessage('Generating new map...');
+    setIsGameActive(false);
+    setIsBattleActive(false);
+    setEncounteredWisp(null);
+    setPlayerPosition({ x: -1, y: -1 }); // Reset player position to trigger re-init
+
+    // Generate new map data
+    const { map: newMap, treasureCount: newTreasureCount } = generateMap(mapWidth, mapHeight);
+    setGameMap(newMap);
+    setTotalTreasuresOnMap(newTreasureCount);
+    console.log(`[regenerateMap] New map generated with ${newTreasureCount} treasures.`);
+
+    // Reset map-specific states
+    setTreasuresCollectedThisMap(0);
+    setIsTranslationChallengeActive(false);
+    setCurrentWord(null);
+    setPendingTreasurePosition(null);
+    setSelectedWord("");
+
+    if (!preserveScore) {
+      console.log("[regenerateMap] Resetting total score.");
+      setTotalScore(0); // Reset total score only if not preserving
+    } else {
+       console.log("[regenerateMap] Preserving total score:", totalScore); // Log score being preserved
+    }
+
+
+    setMapGenerationKey(prevKey => prevKey + 1); // Increment key to trigger initialization effect
+  }, [ // Dependencies: All state setters used within
+      setMessage, setIsGameActive, setIsBattleActive, setEncounteredWisp, 
+      setPlayerPosition, setGameMap, setTotalTreasuresOnMap, 
+      setTreasuresCollectedThisMap, setIsTranslationChallengeActive, 
+      setCurrentWord, setPendingTreasurePosition, setSelectedWord, 
+      setMapGenerationKey, setTotalScore, totalScore // Include totalScore in deps for logging
+  ]);
+
   // Handle answer submission for Treasure challenge (Wrapped in useCallback)
   const handleTreasureAnswer = useCallback(() => {
     if (!currentWord || !pendingTreasurePosition) return;
@@ -121,33 +170,49 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     let correct = false;
     if (selectedWord === currentWord.english) {
         correct = true;
-        // Use targetWord in the feedback message
-        messageText = `Correct! "${currentWord.targetWord}" means "${currentWord.english}". Treasure collected!`; 
-        setTreasuresCollected(prev => prev + 1);
+        messageText = `Correct! "${currentWord.targetWord}" means "${currentWord.english}". Score +1!`; 
+        // Update total score and treasures collected on this map
+        setTotalScore(prev => prev + 1);
+        setTreasuresCollectedThisMap(prev => prev + 1); // This will trigger the useEffect below
     } else {
-        // Use targetWord in the feedback message
         messageText = `Incorrect. The correct answer for "${currentWord.targetWord}" was "${currentWord.english}". The treasure vanished...`;
     }
     
     // Replace the treasure with a path regardless of answer
-    // Use functional update for setGameMap to avoid dependency on gameMap itself
+    const pos = pendingTreasurePosition; // Capture position before resetting state
     setGameMap(prevMap => {
-        const newMap = prevMap.map(row => [...row]); // Create deep copy
-        if (pendingTreasurePosition) { // Check if position exists
-           newMap[pendingTreasurePosition.y][pendingTreasurePosition.x] = {...cellTypes.path};
+        const newMap = prevMap.map(row => [...row]); 
+        if (pos) { // Check if position exists (it should)
+           newMap[pos.y][pos.x] = {...cellTypes.path};
         }
         return newMap;
     });
     
     setMessage(messageText);
     
-    // Reset the challenge
+    // Reset the challenge state immediately
     setIsTranslationChallengeActive(false);
     setCurrentWord(null);
     setPendingTreasurePosition(null);
     setSelectedWord("");
-  }, [currentWord, pendingTreasurePosition, selectedWord, setGameMap, setMessage, setTreasuresCollected, setIsTranslationChallengeActive, setCurrentWord, setPendingTreasurePosition, setSelectedWord]);
+
+    // Map regeneration check is now handled by the useEffect watching treasuresCollectedThisMap
+
+  }, [currentWord, pendingTreasurePosition, selectedWord, setGameMap, setMessage, setTotalScore, setTreasuresCollectedThisMap, setIsTranslationChallengeActive, setCurrentWord, setPendingTreasurePosition, setSelectedWord]); // Dependencies updated
   
+  // --- Effect to Check for Map Completion ---
+  useEffect(() => {
+    // Only run if treasures have been collected AND we know the total number
+    if (treasuresCollectedThisMap > 0 && totalTreasuresOnMap > 0 && treasuresCollectedThisMap >= totalTreasuresOnMap) {
+      console.log(`[Map Completion Check] All ${totalTreasuresOnMap} treasures collected! Regenerating map.`);
+      setMessage(`Map Cleared! Score: ${totalScore + 1}. Generating new map...`); // Show score before regeneration starts
+      // Regenerate map, preserving the score
+      regenerateMap(true); 
+    }
+  // Depend on the count of treasures collected on this map and the total expected
+  }, [treasuresCollectedThisMap, totalTreasuresOnMap, regenerateMap, totalScore, setMessage]);
+
+
   // --- Initialization: Find Player Start & Set Active --- 
   useEffect(() => {
     console.log("[Initialization Effect] Running due to map change...");
@@ -260,7 +325,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
                 setSelectedWord(""); // Reset selection
                 specialTileMessage = `Treasure! Translate: "${word.targetWord}"`;
              } else {
-                setTreasuresCollected(prev => prev + 1);
+                setTreasuresCollectedThisMap(prev => prev + 1);
                 specialTileMessage = 'Treasure collected! (No language data)';
                 // Use functional update for setGameMap
                 setGameMap(prevMap => {
@@ -298,34 +363,13 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   // Dependencies updated: use combined isLoading, removed selectedLanguage (implicit via words/wordsError)
-  }, [isLoading, isGameActive, isTranslationChallengeActive, isBattleActive, playerPosition, gameMap, onPositionChange, words, wordsError, setPlayerPosition, setMessage, setCurrentWord, setIsTranslationChallengeActive, setPendingTreasurePosition, setTreasuresCollected, setGameMap]); 
+  }, [isLoading, isGameActive, isTranslationChallengeActive, isBattleActive, playerPosition, gameMap, onPositionChange, words, wordsError, setPlayerPosition, setMessage, setCurrentWord, setIsTranslationChallengeActive, setPendingTreasurePosition, setTreasuresCollectedThisMap, setGameMap]); 
   
-  // Regenerate Map Function (Wrapped in useCallback)
+  // Regenerate Map Function (Wrapped in useCallback) - Now uses the shared regenerateMap function
   const handleGenerateNewMap = useCallback(() => {
     console.log("[handleGenerateNewMap] User clicked Generate New Map");
-    // isLoading state will update automatically when playerPosition is reset
-    setPlayerPosition({ x: -1, y: -1 }); 
-    setMessage('Generating new map...');
-    setIsGameActive(false); 
-    setIsBattleActive(false); 
-    setEncounteredWisp(null);
-    
-    // Regenerate map and trigger initialization by updating the key
-    setGameMap(() => generateMap(mapWidth, mapHeight)); // Pass dimensions
-    setMapGenerationKey(prevKey => prevKey + 1); // Increment key
-    
-    // Reset other states
-    setTreasuresCollected(0);
-    setIsTranslationChallengeActive(false);
-    setCurrentWord(null);
-    setPendingTreasurePosition(null);
-    setSelectedWord("");
-  }, [
-    // List all the state setters used
-    setPlayerPosition, setMessage, setIsGameActive, setIsBattleActive, 
-    setEncounteredWisp, setGameMap, setTreasuresCollected, setIsTranslationChallengeActive, 
-    setCurrentWord, setPendingTreasurePosition, setSelectedWord, setMapGenerationKey
-  ]);
+    regenerateMap(true); // Call the shared function, preserving score
+  }, [regenerateMap]); // Dependency is the memoized regenerateMap function
 
 
   // --- Dynamic Title based on Language ---
@@ -363,8 +407,12 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           </div>
           
           <div className="game-stats">
-            <div>Treasures: {treasuresCollected}</div>
-            {playerPosition.x !== -1 && <div>Pos: ({playerPosition.x}, {playerPosition.y})</div>}
+            {/* Updated to show totalScore */}
+            <div>Score: {totalScore}</div> 
+            {/* Show treasures collected on current map / total for current map */}
+            <div>Treasures Found (Map): {treasuresCollectedThisMap} / {totalTreasuresOnMap}</div> 
+            {/* Add min-width to prevent layout shift */}
+            {playerPosition.x !== -1 && <div style={{ minWidth: '85px', textAlign: 'left' }}>Pos: ({playerPosition.x}, {playerPosition.y})</div>}
             {/* Use words state from hook, show loading/error status */}
             <div>Words Loaded ({selectedLanguage}): {words.length} {isLoadingWords ? '(Loading...)' : ''}{wordsError ? '(Error!)' : ''}</div> 
             <div>Wisps Captured: {capturedWisps.length}</div>
@@ -456,7 +504,7 @@ const DefaultGameMap: React.FC<DefaultGameMapProps> = ({
           <div className="game-controls">
             <p>Use arrow keys or WASD to move</p>
             {/* Disable button based on combined isLoading state */}
-            <button onClick={handleGenerateNewMap} disabled={isLoading}>Generate New Map</button> 
+            <button onClick={handleGenerateNewMap} disabled={isLoading}>Generate New Map (Keep Score)</button> 
           </div>
         </>
       )}
